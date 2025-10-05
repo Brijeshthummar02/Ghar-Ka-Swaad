@@ -1,5 +1,7 @@
 const Cook = require('../models/Cook');
 const User = require('../models/User');
+const Order = require('../models/Order');
+const Meal = require('../models/Meal');
 const asyncHandler = require('express-async-handler');
 const cloudinary = require('../config/cloudinary');
 
@@ -145,9 +147,9 @@ exports.updateCook = asyncHandler(async (req, res) => {
 exports.getCooks = asyncHandler(async (req, res) => {
   try {
     const { pincode, lat, lon } = req.query;
-    
+
     let query = {};
-    
+
     // If coordinates are provided, find cooks nearby
     if (lat && lon) {
       query = {
@@ -161,21 +163,74 @@ exports.getCooks = asyncHandler(async (req, res) => {
           }
         }
       };
-    } 
+    }
     // If pincode is provided, search by pincode
     else if (pincode) {
       query = { 'location.pincode': pincode };
     }
-    
+
     // Add error handling for database connection issues
     const cooks = await Cook.find(query);
-    
+
     console.log(`Found ${cooks.length} cooks matching query:`, JSON.stringify(query));
-    res.json(cooks);
+
+    // For each cook, find their top-rated meal
+    const cooksWithTopMeal = await Promise.all(
+      cooks.map(async (cook) => {
+        try {
+          // Get all meals for this cook
+          const meals = await Meal.find({
+            cookId: cook._id,
+            isAvailable: true,
+            quantityAvailable: { $gt: 0 }
+          });
+
+          if (meals.length === 0) {
+            return { ...cook.toObject(), topRatedMeal: null };
+          }
+
+          // Calculate average rating for each meal
+          const mealsWithRatings = await Promise.all(
+            meals.map(async (meal) => {
+              const orders = await Order.find({
+                mealId: meal._id,
+                status: 'Completed',
+                rating: { $exists: true, $ne: null }
+              });
+
+              const averageRating = orders.length > 0
+                ? orders.reduce((sum, order) => sum + order.rating, 0) / orders.length
+                : 0;
+
+              return {
+                ...meal.toObject(),
+                averageRating,
+                ratingCount: orders.length
+              };
+            })
+          );
+
+          // Find the meal with the highest rating (if tie, pick the first one)
+          const topRatedMeal = mealsWithRatings
+            .filter(meal => meal.ratingCount > 0)
+            .sort((a, b) => b.averageRating - a.averageRating)[0] || null;
+
+          return {
+            ...cook.toObject(),
+            topRatedMeal
+          };
+        } catch (error) {
+          console.error(`Error calculating top meal for cook ${cook._id}:`, error);
+          return { ...cook.toObject(), topRatedMeal: null };
+        }
+      })
+    );
+
+    res.json(cooksWithTopMeal);
   } catch (error) {
     console.error('Error in getCooks controller:', error);
-    res.status(500).json({ 
-      message: 'Failed to fetch cooks', 
+    res.status(500).json({
+      message: 'Failed to fetch cooks',
       error: error.message
     });
   }

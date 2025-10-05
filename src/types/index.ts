@@ -37,6 +37,10 @@ export interface Cook {
   averageRating: number;
   ratingCount: number;
   activeMeals?: Meal[];
+  topRatedMeal?: Meal & {
+    averageRating: number;
+    ratingCount: number;
+  } | null;
   distance?: number; // In kilometers, calculated from user's location
   createdAt?: string;
 }

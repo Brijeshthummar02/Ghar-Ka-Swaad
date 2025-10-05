@@ -23,7 +23,7 @@ export const FeaturedCooks = () => {
         }
         
         return allCooks
-          .filter(cook => cook.averageRating) // Only filter by rating, not by active meals
+          .filter(cook => cook.averageRating && cook.averageRating > 0) // Only filter by rating, not by active meals
           .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
           .slice(0, 3);
       } catch (error) {
@@ -58,7 +58,7 @@ export const FeaturedCooks = () => {
             <p className="text-lg text-muted-foreground mb-4">Unable to load featured cooks</p>
           </div>
         ) : cooks && cooks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {cooks.map((cook) => (
               <CookCard 
                 key={cook._id}
@@ -68,11 +68,12 @@ export const FeaturedCooks = () => {
                 rating={cook.averageRating || 0}
                 reviews={cook.ratingCount || 0}
                 location={cook.location?.neighborhood || 'Unknown location'}
-                todaysDish={cook.activeMeals?.[0]?.name || ''}
-                dishImage={cook.activeMeals?.[0]?.image || ''}
-                price={cook.activeMeals?.[0]?.price || 0}
-                calories={cook.activeMeals?.[0]?.calories || 0}
+                todaysDish={cook.topRatedMeal?.name || 'No top dish yet'}
+                dishImage={cook.topRatedMeal?.image || ''}
+                price={cook.topRatedMeal?.price || 0}
+                calories={cook.topRatedMeal?.calories || 0}
                 verified={true}
+                topRated={true}
               />
             ))}
           </div>
